@@ -39,6 +39,17 @@ impl MessageStats {
             + self.fuzzy_translated_count
     }
 
+    /// Returns `count` as a percentage of the total number of messages.
+    ///
+    /// A catalog without any messages has no share of translated or
+    /// untranslated messages, so every percentage is 0 rather than NaN.
+    fn percent(&self, count: u32) -> f64 {
+        match self.total() {
+            0 => 0.0,
+            total => 100.0 * f64::from(count) / f64::from(total),
+        }
+    }
+
     /// Converts the stats to a map of numbers to be used in context for a Tera template.
     pub fn to_context(&self) -> BTreeMap<String, Value> {
         let mut context: BTreeMap<String, Value> = BTreeMap::new();
@@ -62,19 +73,19 @@ impl MessageStats {
         );
         context.insert(
             "non_translated_percent".to_string(),
-            (100.0 * f64::from(self.non_translated_count) / f64::from(self.total())).into(),
+            self.percent(self.non_translated_count).into(),
         );
         context.insert(
             "translated_percent".to_string(),
-            (100.0 * f64::from(self.translated_count) / f64::from(self.total())).into(),
+            self.percent(self.translated_count).into(),
         );
         context.insert(
             "fuzzy_non_translated_percent".to_string(),
-            (100.0 * f64::from(self.fuzzy_non_translated_count) / f64::from(self.total())).into(),
+            self.percent(self.fuzzy_non_translated_count).into(),
         );
         context.insert(
             "fuzzy_translated_percent".to_string(),
-            (100.0 * f64::from(self.fuzzy_translated_count) / f64::from(self.total())).into(),
+            self.percent(self.fuzzy_translated_count).into(),
         );
         context.insert("total".to_string(), self.total().into());
         context
@@ -248,6 +259,25 @@ mod tests {
         ]);
 
         assert_eq!(sample_stats().to_context(), expected);
+    }
+
+    #[test]
+    fn template_context_without_messages() {
+        let stats = MessageStats {
+            language: "fr".to_string(),
+            ..MessageStats::default()
+        };
+        let context = stats.to_context();
+
+        for key in [
+            "non_translated_percent",
+            "translated_percent",
+            "fuzzy_non_translated_percent",
+            "fuzzy_translated_percent",
+        ] {
+            assert_eq!(context[key], 0.0.into(), "{key}");
+        }
+        assert_eq!(context["total"], 0u32.into());
     }
 
     #[test]
